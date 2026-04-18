@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HSK Smart SRS v8.1</title>
+<style>
+:root { --primary: #4CAF50; --bg: #f5f5f7; --text: #1d1d1f; --h1: #ff4757; --h2: #ffa502; --audio: #4a90e2; }
+
+/* 画面のチラつき防止・ハイライト除去 */
+* { -webkit-tap-highlight-color: transparent; outline: none; }
+
+body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; color: var(--text); padding-bottom: 50px; }
+
+/* モード切替タブ */
+.mode-tabs { display: flex; gap: 5px; background: #e0e0e0; padding: 4px; border-radius: 12px; margin-top: 15px; width: 90%; max-width: 400px; }
+.tab-btn { flex: 1; border: none; padding: 10px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: bold; color: #666; background: transparent; transition: 0.2s; }
+.tab-btn.active { background: white; color: var(--text); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+/* ヘッダー */
+.header-area { width: 100%; max-width: 400px; padding: 15px 0 15px 0; text-align: center; position: sticky; top: 0; background: var(--bg); z-index: 10; }
+.stats { font-size: 14px; color: #86868b; margin-bottom: 10px; }
+.progress-container { width: 90%; height: 8px; background: #ddd; border-radius: 4px; margin: 0 auto; overflow: hidden; }
+.progress-inner { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s ease-out; }
+
+/* カードエリア */
+.card-area { width: 90%; max-width: 400px; height: 500px; perspective: 1000px; margin-top: 10px; }
+.card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+.card.flipped { transform: rotateY(180deg); }
+.card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; flex-direction: column; align-items: center; border-radius: 24px; background: white; box-shadow: 0 10px 25px rgba(0,0,0,0.08); padding: 20px; box-sizing: border-box; overflow-y: auto; }
+
+.card-front { justify-content: center; }
+.chinese-main { font-size: 56px; font-weight: bold; color: #333; }
+.pinyin-main { font-size: 20px; color: #888; margin-top: 8px; }
+
+/* 裏面（答えのページ） */
+.card-back { transform: rotateY(180deg); background: #2c3e50; color: white; }
+.label { font-size: 11px; font-weight: bold; color: #aaa; display: block; margin-bottom: 5px; letter-spacing: 0.1em; text-transform: uppercase; }
+.back-chinese { font-size: 42px; font-weight: bold; color: #fff; margin-bottom: 5px; }
+.back-pinyin { font-size: 18px; color: #4a90e2; margin-bottom: 15px; }
+.meaning-box { background: #f1c40f; color: #000; padding: 15px 20px; border-radius: 16px; font-size: 28px; font-weight: 900; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(241, 196, 15, 0.4); text-align: center; width: 90%; line-height: 1.2; }
+
+.example-box { width: 100%; border-radius: 12px; padding: 15px; box-sizing: border-box; background: rgba(0,0,0,0.2); text-align: left; }
+ruby { font-size: 19px; line-height: 2.5; margin-right: 2px; }
+rt { font-size: 10px; color: #7cb9ff; font-weight: normal; transform: translateY(-2px); }
+
+/* 音声ボタン */
+.audio-group { display: flex; gap: 8px; margin-top: 10px; }
+.audio-btn { display: inline-flex; align-items: center; justify-content: center; background: var(--audio); color: white; border: none; border-radius: 10px; padding: 8px 15px; font-size: 13px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 0 #357abd; transition: 0.1s; }
+.audio-btn:active { transform: translateY(2px); box-shadow: none; }
+
+/* 回答コントロール */
+.controls { visibility: hidden; margin-top: 20px; width: 90%; max-width: 400px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.controls.show { visibility: visible; }
+.btn { padding: 18px; border: none; border-radius: 16px; font-size: 18px; font-weight: bold; cursor: pointer; }
+.btn-hard { background: #e0e0e0; color: #333; }
+.btn-easy { background: var(--primary); color: white; }
+
+/* 下部メニュー */
+.bottom-menu { margin-top: 30px; display: flex; flex-direction: column; gap: 12px; align-items: center; width: 90%; max-width: 400px; }
+.secondary-btn { width: 100%; background: white; border: 1px solid #ddd; color: #666; padding: 12px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 500; }
+.list-area { width: 100%; background: white; border-radius: 12px; display: none; padding: 15px; box-sizing: border-box; font-size: 14px; border: 1px solid #eee; margin-top: 5px; }
+.list-item { padding: 8px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<div class="mode-tabs">
+<button class="tab-btn active" id="tab-all" onclick="setMode('all')">全級</button>
+<button class="tab-btn" id="tab-1" onclick="setMode('1')">HSK 1級</button>
+<button class="tab-btn" id="tab-2" onclick="setMode('2')">HSK 2級</button>
+</div>
+
+<div class="header-area">
+<div class="stats" id="stats">読込中...</div>
+<div class="progress-container"><div class="progress-inner" id="pb"></div></div>
+</div>
+
+<div class="card-area" id="card-area">
+<div class="card" id="card" onclick="flip()">
+<div class="card-face card-front">
+<div id="lv-front" style="padding:4px 10px; border-radius:5px; color:white; font-size:11px; margin-bottom:15px;"></div>
+<div class="chinese-main" id="front-chinese"></div>
+<div class="pinyin-main" id="front-pinyin"></div>
+<button class="audio-btn" style="margin-top:25px;" onclick="handleMainAudio(event)">🔊 発音を聞く</button>
+</div>
+<div class="card-face card-back">
+<div class="back-chinese" id="back-chinese"></div>
+<div class="back-pinyin" id="back-pinyin"></div>
+<span class="label">意味</span>
+<div class="meaning-box" id="back-meaning"></div>
+<div id="back-example" class="example-box">
+<span class="label" style="color:var(--primary)">例文</span>
+<div id="ex-cn-ruby" style="margin-bottom:10px; color: #fff;"></div>
+<div id="ex-ja" style="font-size:14px; color:#bdc3c7; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px;"></div>
+<div class="audio-group">
+<button class="audio-btn" onclick="handleMainAudio(event)">🔊 単語のみ</button>
+<button class="audio-btn" style="background: var(--primary); box-shadow: 0 3px 0 #388E3C;" onclick="handleExAudio(event)">🔊 例文を聞く</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div id="msg" style="display:none; text-align: center; margin-top: 50px; font-weight: bold; color: var(--primary); padding: 20px;">
+🎉 選択した級の学習は完了しました！<br>
+<small style="color:#888; font-weight:normal;">他の級に切り替えるか、リセットしてください。</small>
+</div>
+
+<div class="controls" id="controls">
+<button class="btn btn-hard" onclick="handleRes(event, false)">忘れた</button>
+<button class="btn btn-easy" onclick="handleRes(event, true)">覚えた</button>
+</div>
+
+<div class="bottom-menu">
+<button class="secondary-btn" onclick="restartCurrentMode()">🔄 今の選択範囲を最初からやり直す</button>
+<button class="secondary-btn" id="list-toggle" onclick="toggleList()">📋 残っている単語一覧を表示</button>
+<div class="list-area" id="word-list"></div>
+<button class="secondary-btn" style="color:#ff4757; border-color: #ffeadb; margin-top:20px; background: #fff5f5;" onclick="fullReset()">⚠️ 全記録を完全に消去</button>
+</div>
+
+<script>
+// --- [データ貼り付けエリア] ---
+const d1 = "爱,ài,愛する・好む,1,,我(wǒ)的(de)女(nǚ)儿(ér)很(hěn)爱(ài)吃(chī)水(shuǐ)果(guǒ)。 / 私の娘は果物を食べるのが大好きです。|八,bā,八,1,,今(jīn)天(tiān)我(wǒ)有(yǒu)八(bā)节(jié)课(kè)。 / 今日、私は授業が8コマあります。|爸爸,bàba,お父さん,1,,我(wǒ)的(de)爸(bà)爸(ba)是(shì)一(yī)名(míng)医(yī)生(shēng)。 / 私の父は一人の医者です。|杯子,bēizi,コップ,1,,桌(zhuō)子(zi)上(shàng)有(yǒu)一(yī)个(gè)杯(bēi)子(zi)。 / 机の上にコップが一つあります。|北京,Běijīng,北京,1,,我(wǒ)の(de)朋(péng)友(you)在(zài)北(běi)京(jīng)工(gōng)作(zuò)。 / 私の友達は北京で働いています。|本,běn,〜冊,1,,我(wǒ)买(mǎi)了(le)五(wǔ)本(běn)汉(hàn)语(yǔ)书(shū)。 / 私は中国語の本を5冊買いました。|不客气,bú kèqi,どういたしまして,1,,不(bù)用(yòng)谢(xiè)，不(bú)客(kè)气(qi)。 / お礼には及びません、どういたしまして。|不,bù,〜ない,1,,我(wǒ)不(bù)认(rèn)识(shi)那(nà)个(gè)学(xué)生(sheng)。 / 私はあの学生を知りません。|菜,cài,料理・野菜,1,,这(zhè)个(ge)店(diàn)的(de)中(zhōng)国(guó)菜(cài)很(hěn)好(hǎo)吃(chī)。 / この店の中華料理はとてもおいしいです。|茶,chá,お茶,1,,请(qǐng)您(nín)喝(hē)一(yī)杯(bēi)茶(chá)吧(ba)。 / どうぞお茶を一杯飲んでください。|吃,chī,食べる,1,,你(nǐ)想(xiǎng)吃(chī)什(shén)么(me)水(shuǐ)果(guǒ)？ / あなたは何の果物を食べたいですか？|出租车,chūzūchē,タクシー,1,,我(wǒ)们(men)坐(zuò)出(chū)租(zū)车(chē)去(qù)学(xué)校(xiào)吧(ba)。 / タクシーで学校へ行きましょう。|打电话,dǎ diànhuà,電話をかける,1,,他(tā)在(zài)给(gěi)老(lǎo)师(shī)打(dǎ)电(diàn)话(huà)。 / 彼は先生に電話をかけています。|大,dà,大きい,1,,这(zhè)个(ge)学(xué)校(xiào)的(de)医(yī)院(yuàn)很(hěn)大(dà)。 / この学校の病院はとても大きいです。|的,de,〜の,1,,这(zhè)是(shì)我(wǒ)买(mǎi)的(de)新(xīn)衣(yī)服(fu)。 / これは私が買った新しい服です。|点,diǎn,〜時,1,,现(xiàn)在(zài)的(de)北(běi)京(jīng)时(shí)间(jiān)是(shì)十(shí)点(diǎn)。 / 今の北京時間は10時です。|电脑,diànnǎo,パソコン,1,,我(wǒ)要(yào)买(mǎi)一(yī)个(gè)新(xīn)电(diàn)脑(nǎo)。 / 私は新しいパソコンを買うつもりです。|电视,diànshì,テレビ,1,,我(wǒ)爷(yé)爷(ye)在(zài)看(kàn)电(diàn)视(shì)。 / 私の祖父はテレビを見ています。|电影,diànyǐng,映画,1,,你(nǐ)想(xiǎng)去(qù)看(kàn)那(nà)个(gè)电(diàn)影(yǐng)吗(ma)？ / あなたはあの映画を観に行きたいですか？|东西,dōngxi,もの,1,,他(tā)在(zài)商(shāng)店(diàn)里(lǐ)买(mǎi)了(le)很(hěn)多(duō)东(dōng)西(xi)。 / 彼は店でたくさんのものを買いました。|都,dōu,すべて,1,,我(wǒ)们(men)都(dōu)是(shì)中(zhōng)国(guó)留(liú)学(xué)生(sheng)。 / 私たちはみんな中国人留学生です。|读,dú,読む,1,,我(wǒ)会(huì)读(dú)这(zhè)个(ge)汉(hàn)字(zì)。 / 私はこの漢字を読むことができます。|对不起,duìbuqǐ,ごめんなさい,1,,对(duì)不(bu)起(qǐ)，我(wǒ)没(méi)看(kàn)见(jiàn)你(nǐ)。 / すみません、あなたが見えませんでした。|多,duō,多い,1,,这(zhè)里(lǐ)有(yǒu)很(hěn)多(duō)漂(piào)亮(liang)的(de)衣(yī)服(fu)。 / ここにはたくさんの綺麗な服があります。|多少,duōshǎo,いくら・どのくらい,1,,这(zhè)个(ge)电(diàn)脑(nǎo)多(duō)少(shao)钱(qián)？ / このパソコンはいくらですか？|儿子,érzi,息子,1,,他(tā)的(de)儿(ér)子(zi)今(jīn)年(nián)六(liù)岁(suì)了(le)。 / 彼の息子は今年6歳になりました。|二,èr,二,1,,现(xiàn)在(zài)是(shì)两(liǎng)点(diǎn)十(shí)分(fēn)。 / 今は2時10分です。|饭店,fàndiàn,レストラン,1,,我(wǒ)们(men)去(qù)那(nà)个(gè)饭(fàn)店(diàn)吃(chī)饭(fàn)吧(ba)。 / あのレストランへご飯を食べに行きましょう。|飞机,fēijī,飛行機,1,,我(wǒ)明(míng)天(tiān)坐(zuò)飞(fēi)机(jī)去(qù)北(běi)京(jīng)。 / 私は明日飛行機で北京へ行きます。|分,fēn,〜分,1,,现(xiàn)在(zài)是(shì)八(bā)点(diǎn)零(líng)五(wǔ)分(fēn)。 / 今は8時5分です。|分钟,fēnzhōng,〜分間,1,,请(qǐng)再(zài)等(děng)我(wǒ)十(shí)分(fēn)钟(zhōng)。 / あと10分間待ってください。|高兴,gāoxìng,嬉しい,1,,认(rèn)识(shi)您(nín)我(wǒ)很(hěn)高(gāo)兴(xìng)。 / あなたにお会いできてとても嬉しいです。|个,gè,〜個,1,,我(wǒ)桌(zhuō)子(zi)上(shàng)有(yǒu)三(sān)个(gè)苹(píng)果(guǒ)。 / 私の机の上にリンゴが3個あります。|工作,gōngzuò,仕事・働く,1,,他(tā)在(zài)这(zhè)个(ge)医(yī)院(yuàn)工(gōng)作(zuò)。 / 彼はこの病院で働いています。|狗,gǒu,犬,1,,那(nà)只(zhī)小(xiǎo)狗(gǒu)非(fēi)常(cháng)可(kě)爱(ài)。 / あの子犬はとても可愛いです。|汉语,hànyǔ,中国語,1,,我(wǒ)在(zài)学(xué)习(xí)说(shuō)汉(hàn)语(yǔ)。 / 私は中国語を話す学習をしています。|好,hǎo,良い・元気,1,,我(wǒ)的(de)老(lǎo)师(shī)身(shēn)体(tǐ)很(hěn)好(hǎo)。 / 私の先生はとても元気です。|号,hào,〜日,1,,今(jīn)天(tiān)是(shì)一(yī)月(yuè)一(yī)号(hào)。 / 今日は1月1日です。|喝,hē,飲む,1,,你(nǐ)下(xià)午(wǔ)想(xiǎng)喝(hē)什(shén)么(me)？ / あなたは午後、何を飲みたいですか？|和,hé,〜と,1,,我(wǒ)和(hé)我(wǒ)的(de)朋(péng)友(you)去(qù)学(xué)校(xiào)。 / 私と私の友達は学校へ行きます。|很,hěn,とても,1,,今(jīn)天(tiān)的(de)北(běi)京(jīng)很(hěn)冷(lěng)。 / 今日の北京はとても寒いです。|后面,hòumiàn,後ろ,1,,他(tā)在(zài)那(nà)个(gè)商(shāng)店(diàn)の(de)后(hòu)面(mian)。 / 彼はあの店の後ろにいます。|回,huí,帰る,1,,我(wǒ)想(xiǎng)回(huí)学(xué)校(xiào)看(kàn)书(shū)。 / 私は学校に戻って本を読みたいです。|会,huì,できる,1,,我(wǒ)会(huì)写(xiě)很(hěn)多(duō)汉(hàn)字(zì)。 / 私はたくさんの漢字を書くことができます。|几,jǐ,いくつの,1,,你(nǐ)有(yǒu)几(jǐ)个(gè)中(zhōng)文(wén)老(lǎo)师(shī)？ / あなたは何人の中国語の先生がいますか？|家,jiā,家,1,,我(wǒ)的(de)家(jiā)在(zài)北(běi)京(jīng)的(de)后(hòu)面(mian)。 / 私の家は北京の後ろ側にあります。|叫,jiào,〜という名前だ,1,,我(wǒ)叫(jiào)王(wáng)小(xiǎo)明(míng)。 / 私は王小明といいます。|今天,jīntiān,今日,1,,今(jīn)天(tiān)是(shì)星(xīng)期(qī)六(liù)。 / 今日は土曜日です。|九,jiǔ,九,1,,现(xiàn)在(zài)的(de)北(běi)京(jīng)是(shì)九(jiǔ)点(diǎn)。 / 今の北京は9時です。|开,kāi,開ける・運転する,1,,他(tā)开(kāi)车(chē)去(qù)那(nà)个(gè)医(yī)院(yuàn)。 / 彼は車を運転してあの病院へ行きます。|看,kàn,見る・読む,1,,我(wǒ)在(zài)房(fáng)间(jiān)里(lǐ)看(kàn)书(shū)。 / 私は部屋の中で本を読んでいます。|看见,kànjiàn,見える,1,,我(wǒ)看(kàn)见(jiàn)了(le)我(wǒ)的(de)老(lǎo)师(shī)。 / 私は私の先生が見えました。|块,kuài,〜元,1,,一(yī)共(gòng)是(shì)五(wǔ)块(kuài)钱(qián)。 / 全部で5元です。|来,lái,来る,1,,我(wǒ)的(de)老(lǎo)师(shī)来(lái)我(wǒ)的(de)家(jiā)了(le)。 / 私の先生が私の家に来ました。|老师,lǎoshī,先生,1,,他(tā)是(shì)我(wǒ)的(de)汉(hàn)语(yǔ)老(lǎo)师(shī)。 / 彼は私の中国語の先生です。|了,le,〜した,1,,我(wǒ)已(yǐ)经(jīng)吃(chī)过(guò)午(wǔ)饭(fàn)了(le)。 / 私はもう昼食を食べました。|冷,lěng,寒い,1,,今(jīn)天(tiān)の(de)北(běi)京(jīng)太(tài)冷(lěng)了(le)。 / 今日の北京はあまりに寒すぎます。|里,lǐ,中,1,,书(shū)包(bāo)里(lǐ)面(mian)有(yǒu)很(hěn)多(duō)书(shū)。 / カバンの中にたくさんの本があります。|六,liù,六,1,,我(wǒ)有(yǒu)六(liù)本(běn)汉(hàn)语(yǔ)书(shū)。 / 私は中国語の本を6冊持っています。|妈妈,māma,お母さん,1,,我(wǒ)的(de)妈(mā)妈(ma)很(hěn)漂(piào)亮(liang)。 / 私の母はとても綺麗です。|吗,ma,〜ですか？,1,,他(tā)是(shì)你(nǐ)的(de)老(lǎo)师(shī)吗(ma)？ / 彼はあなたの先生ですか？|买,mǎi,買う,1,,我(wǒ)想(xiǎng)买(mǎi)一(yī)件(jiàn)新(xīn)衣(yī)服(fu)。 / 私は新しい服を一着買いたいです。|猫,māo,猫,1,,我(wǒ)的(de)猫(māo)在(zài)椅(yǐ)子(zi)下(xià)面(mian)。 / 私の猫は椅子の下にいます。|没关系,méi guānxi,大丈夫,1,,没(méi)关(guān)系(xi)，谢(xiè)谢(xie)你(nǐ)。 / 大丈夫ですよ、ありがとうございます。|没有,méiyǒu,ない・持っていない,1,,我(wǒ)没(méi)有(yǒu)那(nà)个(gè)电(diàn)脑(nǎo)。 / 私はあのパソコンを持っていません。|米饭,mǐfàn,ご飯,1,,我(wǒ)爱(ài)吃(chī)中(zhōng)国(guó)的(de)米(mǐ)饭(fàn)。 / 私は中国のご飯を食べるのが好きです。|名字,míngzi,名前,1,,你(nǐ)叫(jiào)什(shén)么(me)名(míng)字(zi)？ / あなたの名前は何ですか？|明天,míngtiān,明日,1,,我(wǒ)们(men)明(míng)天(tiān)再(zài)见(jiàn)。 / 私たちはまた明日会いましょう。|哪,nǎ,どの,1,,你(nǐ)是(shì)哪(nǎ)国(guó)人(rén)？ / あなたはどこの国の人ですか？|哪儿,nǎr,どこ,1,,你(nǐ)在(zài)哪(nǎ)儿(r)工(gōng)作(zuò)？ / あなたはどこで働いていますか？|那,nà,あれ,1,,那(nà)是(shì)我(wǒ)的(de)汉(hàn)语(yǔ)书(shū)。 / あれは私の中国語の本です。|那儿,nàr,あそこ,1,,他(tā)在(zài)那(nà)儿(r)写(xiě)汉(hàn)字(zì)。 / 彼はあそこで漢字を書いています。|呢,ne,〜は？,1,,我(wǒ)很(hěn)好(hǎo)，你(nǐ)呢(ne)？ / 私は元気です、あなたは？|能,néng,〜できる,1,,你(nǐ)能(néng)来(lái)我(wǒ)家(jiā)吗(ma)？ / 私の家に来ることはできますか？|你,nǐ,あなた,1,,你(nǐ)是(shì)哪(nǎ)个(gè)学(xué)校(xiào)的(de)学(xué)生(sheng)？ / あなたはどの学校の学生ですか？|年,nián,年,1,,今(jīn)年(nián)是(shì)二(èr)〇(líng)二(èr)六(liù)年(nián)。 / 今年は2026年です。|女儿,nǚ'ér,娘,1,,他(tā)的(de)女(nǚ)儿(ér)很(hěn)漂(piào)亮(liang)。 / 彼の娘はとても綺麗です。|朋友,péngyou,友達,1,,他(tā)是(shì)我(wǒ)的(de)中(zhōng)国(guó)朋(péng)友(you)。 / 彼は私の中国人の友達です。|漂亮,piàoliang,きれい,1,,这(zhè)个(ge)杯(bēi)子(zi)很(hěn)漂(piào)亮(liang)。 / このコップはとても綺麗です。|苹果,píngguǒ,リンゴ,1,,我(wǒ)想(xiǎng)买(mǎi)一(yī)个(gè)苹(píng)果(guǒ)。 / 私はリンゴを1個買いたいです。|七,qī,七,1,,现(xiàn)在(zài)是(shì)七(qī)点(diǎn)。 / 今は7時です。|钱,qián,お金,1,,这(zhè)个(ge)东(dōng)西(xi)多(duō)少(shao)钱(qián)？ / このものはいくらですか？|前面,qiánmiàn,前,1,,老(lǎo)师(shī)在(zài)商(shāng)店(diàn)的(de)前(qián)面(mian)。 / 先生は店の前にいます。|请,qǐng,どうぞ・〜してください,1,,请(qǐng)在(zài)这(zhè)里(lǐ)坐(zuò)。 / ここに座ってください。|去,qù,行く,1,,我(wǒ)明(míng)天(tiān)去(qù)商(shāng)店(diàn)买(mǎi)东(dōng)西(xi)。 / 私は明日店にものを買いに行きます。|热,rè,暑い・熱い,1,,今(jīn)天(tiān)的(de)北(běi)京(jīng)很(hěn)热(rè)。 / 今日の北京はとても暑いです。|人,rén,人,1,,那(nà)个(gè)商(shāng)店(diàn)里(lǐ)有(yǒu)很(hěn)多(duō)人(rén)。 / あの店の中にたくさんの人がいます。|认识,rènshi,知り合う,1,,认(rèn)识(shi)你(nǐ)我(wǒ)很(hěn)高(gāo)兴(xìng)。 / あなたにお会いできてとても嬉しいです。|三,sān,三,1,,现(xiàn)在(zài)是(shì)三(sān)点(diǎn)。 / 今は3時です。|商店,shāngdiàn,店,1,,我(wǒ)在(zài)商(shāng)店(diàn)里(lǐ)买(mǎi)衣(yī)服(fu)。 / 私は店の中で服を買います。|上,shàng,上・登る,1,,书(shū)在(zài)桌(zhuō)子(zi)上(shàng)面(mian)。 / 本は机の上にあります。|上午,shàngwǔ,午前,1,,我(wǒ)是(shì)上(shàng)午(wǔ)十(shí)点(diǎn)去(qù)的(de)。 / 私は午前10時に行ったのです。|少,shǎo,少ない,1,,这(zhè)里(lǐ)的(de)钱(qián)太(tài)少(shǎo)了(le)。 / ここにあるお金は少なすぎます。|谁,shéi,だれ,1,,谁(shéi)是(shì)你(nǐ)の(de)汉(hàn)语(yǔ)老(lǎo)师(shī)？ / 誰があなたの中国語の先生ですか？|什么,shénme,なに,1,,这(zhè)是(shì)什(shén)么(me)东(dōng)西(xi)？ / これは何というものですか？|十,shí,十,1,,我(wǒ)有(yǒu)十(shí)个(gè)大(dà)苹(píng)果(guǒ)。 / 私は10個の大きなリンゴを持っています。|时候,shíhou,とき,1,,你(nǐ)什(shén)么(me)时(shí)候(hou)去(qù)中(zhōng)国(guó)？ / あなたはいつ中国へ行きますか？|是,shì,〜である,1,,我(wǒ)是(shì)日(rì)本(běn)留(liú)学(xué)生(sheng)。 / 私は日本人留学生です。|书,shū,本,1,,我(wǒ)在(zài)读(dú)一(yī)本(běn)汉(hàn)语(yǔ)书(shū)。 / 私は1冊の中国語の本を読んでいます。|水,shuǐ,水,1,,请(qǐng)喝(hē)一(yī)杯(bēi)热(rè)水(shuǐ)吧(ba)。 / どうぞお湯（熱い水）を一杯飲んでください。|水果,shuǐguǒ,果物,1,,我(wǒ)想(xiǎng)买(mǎi)一(yī)些(xiē)水(shuǐ)果(guǒ)。 / 私はいくつかの果物を買いたいです。|睡觉,shuìjiào,寝る,1,,我(wǒ)的(de)猫(māo)在(zài)睡(shuì)觉(jiào)。 / 私の猫は寝ています。|说话,shuōhuà,話す,1,,他(tā)在(zài)和(hé)朋(péng)友(you)说(shuō)话(huà)。 / 彼は友達と話をしています。|四,sì,四,1,,现(xià)在(zài)是(shì)四(sì)点(diǎn)钟(zhōng)。 / 今は4時（ちょうど）です。|岁,suì,〜歳,1,,我(wǒ)今(jīn)年(nián)二(èr)十(shí)岁(suì)。 / 私は今年20歳です。|太,tài,あまりに・〜すぎる,1,,太(tài)好(hǎo)了(le)，谢(xiè)谢(xie)你(nǐ)！ / とても良いですね（よかった）、ありがとうございます！|天气,tiānqì,天気,1,,今(jīn)天(tiān)天(tiān)气(qì)很(hěn)好(hǎo)。 / 今日は天気がとても良いです。|听,tīng,聞く,1,,请(qǐng)听(tīng)老(lǎo)师(shī)说(shuō)话(huà)。 / 先生の話を聞いてください。|同学,tóngxué,同級生,1,,我(wǒ)们(men)都(dōu)是(shì)好(hǎo)同(tóng)学(xué)。 / 私たちはみんな良い同級生です。|喂,wèi,もしもし,1,,喂(wèi)，你(nǐ)好(hǎo)，请(qǐng)问(wèn)你(nǐ)是(shì)谁(shéi)？ / もしもし、こんにちは、失礼ですがどなたですか？|我,wǒ,私,1,,我(wǒ)是(shì)一(yī)个(gè)学(xué)生(sheng)。 / 私は一人の学生です。|我们,wǒmen,私たち,1,,我(wǒ)们(men)是(shì)好(hǎo)朋(péng)友(you)。 / 私たちは親友です。|五,wǔ,五,1,,现(xiàn)在(zài)是(shì)五(wǔ)点(diǎn)。 / 今は5時です。|喜欢,xǐhuan,好き,1,,我(wǒ)喜(xǐ)欢(huan)看(kàn)那(nà)个(gè)电(diàn)影(yǐng)。 / 私はあの映画を観るのが好きです。|下,xià,下・降りる,1,,猫(māo)在(zài)椅(yǐ)子(zi)下(xià)面(mian)。 / 猫は椅子の下にいます。|下午,xiàwǔ,午後,1,,今(jīn)天(tiān)是(shì)下(xià)午(wǔ)四(sì)点(diǎn)。 / 今日は午後の4時です。|下雨,xiàyǔ,雨が降る,1,,今(jīn)天(tiān)北(běi)京(jīng)下(xià)雨(yǔ)了(le)。 / 今日北京は雨が降りました。|先生,xiānsheng,〜さん・夫,1,,那(nà)是(shì)王(wáng)先(xiān)生(sheng)的(de)家(jiā)。 / あれは王さんの家です。|現在,xiànzài,今,1,,现(xiàn)在(zài)是(shì)几(jǐ)点(diǎn)？ / 今は何時ですか？|想,xiǎng,〜したい・思う,1,,我(wǒ)想(xiǎng)去(qù)北(běi)京(jīng)。 / 私は北京へ行きたいです。|小,xiǎo,小さい,1,,那(nà)个(gè)杯(bēi)子(zi)很(hěn)小(xiǎo)。 / あのコップはとても小さいです。|小姐,xiǎojiě,お嬢さん,1,,王(wáng)小(xiǎo)姐(jiě)想(xiǎng)买(mǎi)衣(yī)服(fu)。 / 王さんは服を買いたいです。|些,xiē,いくつかの,1,,我(wǒ)想(xiǎng)买(mǎi)一(yī)些(xiē)水(shuǐ)果(guǒ)。 / 私はいくつかの果物を買いたいです。|写,xiě,書く,1,,我(wǒ)在(zài)写(xiě)汉(hàn)字(zì)。 / 私は漢字を書いています。|谢谢,xièxie,ありがとう,1,,谢(xiè)谢(xie)老(lǎo)师(shī)教(jiāo)我(wǒ)汉(hàn)语(yǔ)。 / 中国語を教えてくださり先生、ありがとうございます。|星期,xīngqī,曜日,1,,今(jīn)天(tiān)日(rì)期(qī)是(shì)星(xīng)期(qī)日(rì)。 / 今日の曜日は日曜日です。|学生,xuésheng,学生,1,,他(tā)是(shì)一(yī)个(gè)好(hǎo)学(xué)生(sheng)。 / 彼は一人の良い学生です。|学习,xuéxí,勉強する,1,,他(tā)在(zài)学(xué)习(xí)说(shuō)汉(hàn)语(yǔ)。 / 彼は中国語を話す勉強をしています。|学校,xuéxiào,学校,1,,我(wǒ)在(zài)这(zhè)个(ge)学(xué)校(xiào)学(xué)习(xí)。 / 私はこの学校で勉強しています。|一,yī,一,1,,现(xiàn)在(zài)是一点。 / 今は1時です。|一点儿,yidiǎnr,少し,1,,请(qǐng)喝(hē)一(yǐ)点(diǎn)儿(r)水(shuǐ)。 / 水を少し飲んでください。|衣服,yīfu,服,1,,我(wǒ)的(de)新(xīn)衣(yī)服(fu)在(zài)家(jiā)里(lǐ)。 / 私の新しい服は家にあります。|医生,yīshēng,医者,1,,我(wǒ)の(de)爸(bà)爸(ba)是(shì)医(yī)生(shēng)。 / 私の父は医者です。|医院,yīyuàn,病院,1,,我(wǒ)去(qù)那(nà)个(gè)医(yī)院(yuàn)。 / 私はあの病院へ行きます。|椅子,yǐzi,椅子,1,,书(shū)在(zài)椅(yǐ)子(zi)上(shàng)面(mian)。 / 本は椅子の上にあります。|有,yǒu,ある・持っている,1,,我(wǒ)有(yǒu)一(yī)台(tái)新(xīn)电(diàn)脑(nǎo)。 / 私は一台の新しいパソコンを持っています。|月,yuè,月,1,,今(jīn)天(tiān)是(shì)一(yī)月(yuè)一(yī)号(hào)。 / 今日は1月1日です。|再见,zàijiàn,さよなら,1,,老(lǎo)师(shī)，再(zài)见(jiàn)。 / 先生、さようなら。|在,zài,〜にある,1,,他(tā)在(zài)学(xué)校(xiào)里(lǐ)看(kàn)书(shū)。 / 彼は学校の中で本を読んでいます。|怎么,zěnme,どうやって,1,,你(nǐ)怎(zěn)么(me)去(qù)学(xué)校(xiào)？ / あなたはどうやって学校へ行きますか？|怎么样,zěnmeyàng,どうですか,1,,今(jīn)天(tiān)天(tiān)气(qì)怎(zěn)么(me)样(yàng)？ / 今日は天気はどうですか？|这,zhè,これ,1,,这(zhè)是(shì)我(wǒ)的(de)新(xīn)衣(yī)服(fu)。 / これは私の新しい服です。|这儿,zhèr,ここ,1,,请(qǐng)你(nǐ)在(zài)这(zhè)儿(r)坐(zuò)。 / ここに座ってください。|中国,Zhōngguó,中国,1,,他(tā)在(zài)中(zhōng)国(guó)工(gōng)作(zuò)。 / 彼は中国で働いています。|中午,zhōngwǔ,お昼,1,,我(wǒ)中(zhōng)午(wǔ)吃(chī)米(mǐ)饭(fàn)。 / 私はお昼にご飯を食べます。|住,zhù,住む,1,,我(wǒ)住(zhù)在(zài)北(běi)京(jīng)。 / 私は北京に住んでいます。|桌子,zhuōzi,机,1,,桌(zhuō)子(zi)上(shàng)面(mian)有(yǒu)一(yī)本(běn)书(shū)。 / 机の上に一冊の本があります。|字,zì,字,1,,他(tā)在(zài)写(xiě)汉(hàn)字(zì)。 / 彼は漢字を書いています。|昨天,zuótiān,昨日,1,,昨(zuó)天(tiān)是(shì)星(xīng)期(qī)五(wǔ)。 / 昨日は金曜日でした。|坐,zuò,座る・乗る,1,,请(qǐng)坐(zuò)在(zài)这(zhè)里(lǐ)。 / ここに座ってください。|做,zuò,する・作る,1,,我(wǒ)的(de)妈(mā)妈(ma)做(zuò)饭(fàn)。 / 私の母が料理を作ります。";
+const d2 = "吧,ba,〜でしょう・〜しましょう,2,,我(wǒ)们(men)一(yì)起(qǐ)去(qù)吧(ba)。 / 私たちと一緒にいきましょう。|白,bái,白い,2,,我(wǒ)喜(xǐ)欢(huan)那(nà)件(jiàn)白(bái)色(sè)的(de)衣(yī)服(fu)。 / 私はあの白い服が好きです。|百,bǎi,百,2,,这(zhè)个(ge)东(dōng)西(xi)一(yì)百(bǎi)块(kuài)钱(qián)。 / このものは100元です。|帮助,bāngzhù,助ける・手伝う,2,,谢(xiè)谢(xie)你(nǐ)的(de)帮(bāng)助(zhù)。 / あなたの助けに感謝します。|报纸,bàozhǐ,新聞,2,,爷(yé)爷(ye)在(zài)看(kàn)今(jīn)天(tiān)的(de)报(bào)纸(zhǐ)。 / 祖父は今日の新聞を見ています。|比,bǐ,〜より,2,,我(wǒ)比(bǐ)他(tā)高(gāo)一(yì)点(diǎn)。 / 私は彼より少し背が高いです。|别,bié,〜するな,2,,在(zài)这(zhè)里(lǐ)别(bié)吃(chī)东(dōng)西(xi)。 / ここで物を食べないでください。|宾馆,bīnguǎn,ホテル,2,,我(wǒ)们(men)住(zhù)在(zài)那(nà)个(ge)宾(bīn)馆(guǎn)。 / 私たちはあのホテルに泊まっています。|长,cháng,長い,2,,这(zhè)条(tiáo)路(lù)很(hěn)长(cháng)。 / この道はとても長いです。|唱歌,chànggē,歌を歌う,2,,她(tā)非(fēi)常(cháng)喜(xǐ)欢(huan)唱(chàng)歌(gē)。 / 彼女は歌を歌うのがとても好きです。|出,chū,出る,2,,他(tā)已(yǐ)经(jīng)出(chū)门(mén)了(le)。 / 彼はもう外出しました。|穿,chuān,着る,2,,你(nǐ)想(xiǎng)穿(chuān)哪(nǎ)件(jiàn)衣(yī)服(fu)？ / あなたはどの服を着たいですか？|次,cì,〜回,2,,我(wǒ)去(qù)过(guo)一(yí)次(cì)中(zhōng)国(guó)。 / 私は一回中国へ行ったことがあります。|从,cóng,〜から,2,,他(tā)从(cóng)学(xué)校(xiào)回(huí)来(lai)了(le)。 / 彼は学校から戻ってきました。|错,cuò,間違い,2,,对(duì)不(bu)起(qǐ)，我(wǒ)错(cuò)了(le)。 / すみません、私が間違っていました。|打篮球,dǎ lánqiú,バスケをする,2,,我(wǒ)们(men)要(yào)去(qù)打(dǎ)篮(lán)球(qiú)。 / 私たちはバスケをしに行きます。|大家,dàjiā,みなさん,2,,请(qǐng)大(dà)家(jiā)坐(zuò)在(zài)这(zhè)里(lǐ)。 / みなさん、ここに座ってください。|但是,dànshì,しかし,2,,我(wǒ)想(xiǎng)去(qù)，但(dàn)是(shì)我(wǒ)很(hěn)忙(máng)。 / 行きたいですが、私は忙しいです。|到,dào,着く,2,,我(wǒ)已(yǐ)经(jīng)到(dào)学(xué)校(xiào)了(le)。 / 私はすでに学校に着きました。|得,de,（状態補語）,2,,他(tā)跑(pǎo)得(de)很(hěn)快(kuài)。 / 彼は走るのがとても速いです。|等,děng,待つ,2,,请(qǐng)在(zài)那(nà)儿(r)等(děng)一(yí)下(xià)。 / あそこで少し待ってください。|弟弟,dìdi,弟,2,,那(nà)是(shì)我(wǒ)的(de)弟(dì)弟(di)。 / あれは私の弟です。|第一,dì-yī,第一,2,,这(zhè)是(shì)我(wǒ)第(dì)一(yī)次(cì)去(qù)北(běi)京(jīng)。 / これは私が初めて北京へ行く時です。|懂,dǒng,わかる,2,,我(wǒ)已(yǐ)经(jīng)懂(dǒng)了(le)。 / 私はすでに分かりました。|对,duì,正しい,2,,你(nǐ)说(shuō)的(de)话(huà)是(shì)对(duì)的(de)。 / あなたの言うことは正しいです。|房间,fángjiān,部屋,2,,这(zhè)是(shì)我(wǒ)的(de)新(xīn)房(fáng)间(jiān)。 / これは私の新しい部屋です。|非常,fēicháng,非常に,2,,那(nà)个(gè)电(diàn)影(yǐng)非(fēi)常(cháng)漂(piào)亮(liang)。 / あの映画は非常に綺麗（素晴らしい）です。|服务员,fúwùyuán,店員,2,,服(fú)务(wù)员(yuán)，请(qǐng)点(diǎn)菜(cài)。 / 店員さん、注文をお願いします。|高,gāo,高い,2,,他(tā)比(bǐ)我(wǒ)高(gāo)很(hěn)多(duō)。 / 彼は私よりずっと背が高いです。|告诉,gàosu,伝える,2,,请(qǐng)告(gào)诉(su)我(wǒ)你(nǐ)的(de)名(míng)字(zi)。 / あなたの名前を教えてください。|哥哥,gēge,兄,2,,我(wǒ)的(de)哥(gē)哥(ge)是(shì)学(xué)生(sheng)。 / 私の兄は学生です。|给,gěi,与える・〜に,2,,我(wǒ)给(gěi)他(tā)一(yī)本(běn)书(shū)。 / 私は彼に一冊の本をあげます。|公共汽车,gōnggòng qìchē,バス,2,,我(wǒ)坐(zuò)公(gōng)共(gòng)汽(qì)车(chē)去(qù)。 / 私はバスに乗って行きます。|公斤,gōngjīn,キログラム,2,,我(wǒ)买(mǎi)了(le)五(wǔ)公(gōng)斤(jīn)苹(píng)果(guǒ)。 / 私は5キロのリンゴを買いました。|公司,gōngsī,会社,2,,他(tā)在(zài)那(nà)个(gè)公(gōng)司(sī)工(gōng)作(zuò)。 / 彼はあの会社で働いています。|贵,guì,高い,2,,那(nà)个(gè)东(dōng)西(xi)太(tài)贵(guì)了(le)。 / あのものはあまりに高すぎます。|过,guò,過ごす・〜したことがある,2,,我(wǒ)看(kàn)过(guo)那(nà)个(gè)电(diàn)影(yǐng)。 / 私はあの映画を観たことがあります。|还,hái,まだ・さらに,2,,我(wǒ)还(hái)有(yǒu)一(yī)个(gè)问(wèn)题(tí)。 / 私はまだ一つ質問があります。|孩子,háizi,子供,2,,他(tā)的(de)孩(hái)子(zi)很(hěn)可(kě)爱(ài)。 / 彼の子供はとても可愛いです。|好吃,hǎochī,おいしい,2,,这(zhè)个(ge)菜(cài)非(fēi)常(cháng)好(hǎo)吃(chī)。 / この料理はとてもおいしいです。|黑,hēi,黒い,2,,那(nà)是(shì)黑(hēi)色(sè)的(de)猫(māo)。 / あれは黒い色の猫です。|红,hóng,赤い,2,,我(wǒ)喜(xǐ)欢(huan)红(hóng)色(sè)的(de)花(huā)。 / 私は赤い花が好きです。|欢迎,huānyíng,歓迎する,2,,欢(huān)迎(yíng)你(nǐ)来(lái)我(wǒ)公(gōng)司(sī)。 / あなたが私の会社に来るのを歓迎します。|回答,huídá,答える,2,,请(qǐng)回(huí)答(dá)这(zhè)个(ge)问(wèn)题(tí)。 / この問題に答えてください。|火车站,huǒchēzhàn,駅,2,,我(wǒ)们(men)去(qù)火(huǒ)车(chē)站(zhàn)吧(ba)。 / 火着駅へ行きましょう。|机场,jīchǎng,空港,2,,他(tā)在(zài)机(jī)场(chǎng)工(gōng)作(zuò)。 / 彼は空港で働いています。|鸡蛋,jīdàn,卵,2,,我(wǒ)想(xiǎng)吃(chī)一(yí)个(gè)鸡(jī)蛋(dàn)。 / 私は卵を一つ食べたいです。|件,jiàn,〜着,2,,这(zhè)件(jiàn)衣(yī)服(fu)很(hěn)漂(piào)亮(liang)。 / この服はとても綺麗です。|教室,jiàoshì,教室,2,,老(lǎo)师(shī)在(zài)教(jiào)室(shì)里(lǐ)。 / 先生は教室の中にいます。|姐姐,jiějie,姉,2,,她(tā)是(shì)我(wǒ)最(zuì)好(hǎo)的(de)姐(jiě)姐(jie)。 / 彼女は私の最高の姉です。|介绍,jièshào,紹介する,2,,我(wǒ)介(jiè)绍(shào)一(yí)下(xià)朋(péng)友(you)。 / 友達をちょっと紹介します。|进,jìn,入る,2,,请(qǐng)进(jìn)，请(qǐng)坐(zuò)吧(ba)。 / お入りください、どうぞ座ってください。|近,jìn,近い,2,,我(wǒ)家(jiā)离(lí)学(xué)校(xiào)很(hěn)近(jìn)。 / 私の家は学校からとても近いです。|就,jiù,すぐに,2,,我(wǒ)现(xiàn)在(zài)就(jiù)去(qù)学(xué)校(xiào)。 / 私は今すぐ学校へ行きます。|觉得,juéde,〜と思う,2,,我(wǒ)觉(jué)得(de)他(tā)很(hěn)好(hǎo)。 / 私は彼が良い（人だ）と思います。|咖啡,kāfēi,コーヒー,2,,你(nǐ)想(xiǎng)喝(hē)咖(kā)啡(fēi)吗(ma)？ / あなたはコーヒーを飲みたいですか？|开始,kāishǐ,始める,2,,我(wǒ)们(men)开(kāi)始(shǐ)学(xué)习(xí)吧(ba)。 / 学習を始めましょう。|考试,kǎoshì,試験,2,,明(míng)天(tiān)我(wǒ)参(cān)加(jiā)考(kǎo)试(shì)。 / 明日私は試験を受けます。|可能,kěnéng,〜かもしれない,2,,今(jīn)天(tiān)可(kě)能(néng)下(xià)雨(yǔ)。 / 今日は雨が降るかもしれません。|可以,kěyǐ,〜してもよい,2,,你(nǐ)可(kě)以(yǐ)去(qù)商(shāng)店(diàn)。 / あなたは店に行ってもいいですよ。|课,kè,授業,2,,我(wǒ)们(men)去(qù)上(shàng)课(kè)吧(ba)。 / 授業に出ましょう。|快,kuài,速い,2,,请(qǐng)你(nǐ)快(kuài)一(yì)点(diǎn)。 / どうぞ少し急いでください。|快乐,kuàilè,楽しい,2,,祝(zhù)你(nǐ)生(shēng)日(rì)快(kuài)乐(lè)。 / あなたの誕生日おめでとう。|累,lèi,疲れる,2,,我(wǒ)现(xiàn)在(zài)很(hěn)累(lèi)。 / 私は今とても疲れています。|离,lí,〜から,2,,我(wǒ)家(jiā)离(lí)这(zhè)儿(r)很(hěn)远(yuǎn)。 / 私の家はここからとても遠いです。|两,liǎng,二つ,2,,我(wǒ)有(yǒu)两(liǎng)个(gè)苹(píng)果(guǒ)。 / 私はリンゴを2個持っています。|路,lù,道,2,,这(zhè)条(tiáo)路(lù)很(hěn)长(cháng)。 / この道はとても長いです。|旅游,lǚyóu,旅行する,2,,我(wǒ)喜(xǐ)欢(huan)去(qù)北(běi)京(jīng)旅(lǚ)游(yóu)。 / 私は北京へ旅行に行くのが好きです。|卖,mài,売る,2,,那(nà)个(gè)店(diàn)卖(mài)衣(yī)服(fu)。 / あの店は服を売っています。|慢,màn,遅い,2,,请(qǐng)慢(màn)走(zǒu)。 / どうぞお気をつけて（ゆっくり歩いて）。|忙,máng,忙しい,2,,我(wǒ)今(jīn)天(tiān)很(hěn)忙(máng)。 / 私は今日とても忙しいです。|每,měi,毎〜,2,,我(wǒ)每(měi)天(tiān)学(xué)汉(hàn)语(yǔ)。 / 私は毎日中国語を勉強します。|妹妹,mèimei,妹,2,,那(nà)是(shì)我(wǒ)の(de)妹(mèi)妹(mei)。 / あれは私の妹です。|门,mén,ドア,2,,他(tā)在(zài)家(jiā)门(mén)口(kǒu)。 / 彼は家の入り口にいます。|面条,miàntiáo,麺,2,,我(wǒ)想(xiǎng)吃(chī)面(miàn)条(tiáo)。 / 私は麺を食べたいです。|男,nán,男,2,,那(nà)个(gè)男(nán)生(shēng)是(shì)学(xué)生(sheng)。 / あの男子生徒は学生です。|牛奶,niúnǎi,牛乳,2,,我(wǒ)每(měi)天(tiān)喝(hē)牛(niú)奶(nǎi)。 / 私は毎日牛乳を飲みます。|女,nǚ,女,2,,那(nà)个(gè)女(nǚ)生(shēng)很(hěn)漂(piào)亮(liang)。 / あの女子生徒はとても綺麗です。|旁边,pángbiān,隣,2,,他(tā)在(zài)我(wǒ)旁(páng)边(biān)。 / 彼は私の隣にいます。|跑步,pǎobù,走る,2,,我(wǒ)喜(xǐ)欢(huan)跑(pǎo)步(bù)。 / 私は走るのが好きです。|便宜,piányi,安い,2,,这(zhè)个(ge)衣(yī)服(fu)很(hěn)便(pián)宜(yi)。 / この服はとても安いです。|票,piào,チケット,2,,我(wǒ)买(mǎi)电(diàn)影(yǐng)票(piào)。 / 私は映画のチケットを買います。|妻子,qīzi,妻,2,,他(tā)的(de)妻(qī)子(zi)是(shì)医(yī)生(shēng)。 / 彼の妻は医者です。|起床,qǐchuáng,起きる,2,,我(wǒ)六(liù)点(diǎn)起(qǐ)床(chuáng)。 / 私は6時に起きます。|千,qiān,千,2,,这(zhè)一(yì)千(qiān)块(kuài)钱(qián)。 / この1000元。|铅笔,qiānbǐ,鉛筆,2,,我(wǒ)有(yǒu)两(liǎng)支(zhī)铅(qiān)笔(bǐ)。 / 私は鉛筆を2本持っています。|晴,qíng,晴れ,2,,今(jīn)天(tiān)天(tiān)气(qì)晴(qíng)。 / 今日は天気が晴れです。|去年,qùnián,去年,2,,去(qù)年(nián)我(wǒ)去(qù)北(běi)京(jīng)了(le)。 / 去年私は北京に行きました。|让,ràng,〜させる,2,,他(tā)让(ràng)我(wǒ)去(qù)。 / 彼は私に行かせました。|上班,shàngbān,出勤する,2,,我(wǒ)去(qù)上(shàng)班(bān)了(le)。 / 私は仕事に行きました。|身体,shēntǐ,体,2,,他(tā)的(de)身(shēn)体(tǐ)很(hěn)好(hǎo)。 / 彼の体はとても丈夫です。|生病,shēngbìng,病気になる,2,,他(tā)昨(zuó)天(tiān)生(shēng)病(bìng)了(le)。 / 彼は昨日病気になりました。|生日,shēngrì,誕生日,2,,今(jīn)天(tiān)是(shì)我(wǒ)的(de)生(shēng)日(rì)。 / 今日は私の誕生日です。|時間,shíjiān,時間,2,,我(wǒ)没(méi)有(yǒu)时(shí)间(jiān)。 / 私は時間がありません。|事情,shìqing,事柄,2,,你(nǐ)有(yǒu)什(shén)么(me)事(shì)情(qing)？ / 何か用事がありますか？|手表,shǒubiǎo,腕時計,2,,那(nà)是(shì)我(wǒ)的(de)手(shǒu)表(biǎo)。 / あれは私の腕時計です。|手机,shǒujī,携帯電話,2,,我(wǒ)在(zài)看(kàn)手(shǒu)机(jī)。 / 私は携帯を見ています。|说话,shuōhuà,話す,2,,他(tā)在(zài)说(shuō)话(huà)呢(ne)。 / 彼は話をしているところです。|送,sòng,送る・贈る,2,,我(wǒ)送(sòng)你(nǐ)礼(lǐ)物(wù)。 / 私はあなたにプレゼントを贈ります。|虽然,suīrán,〜だが,2,,虽(suī)然(rán)很(hěn)热(rè)，但(dàn)是(shì)很(hěn)好(hǎo)。 / 暑いですが、とても良いです。|它,tā,それ,2,,它(tā)是(shì)我(wǒ)的(de)小(xiǎo)猫(māo)。 / それは私の仔猫です。|踢足球,tī zúqiú,サッカーをする,2,,我(wǒ)们(men)去(qù)踢(tī)足(zú)球(qiú)吧(ba)。 / サッカーをしに行きましょう。|题,tí,問題,2,,这(zhè)些(xiē)考(kǎo)试(shì)题(tí)很(hěn)难(nán)。 / これらの試験問題はとても難しいです。|跳舞,tiàowǔ,踊る,2,,她(tā)喜(xǐ)欢(huan)跳(tiào)舞(wǔ)。 / 彼女は踊るのが好きです。|外,wài,外,2,,他(tā)在(zài)学(xué)校(xiào)外(wài)面(mian)。 / 彼は学校の外にいます。|完,wán,終わる,2,,我(wǒ)做(zuò)完(wán)工(gōng)作(zuò)了(le)。 / 私は仕事を終えました。|玩,wán,遊ぶ,2,,我(wǒ)们(men)去(qù)玩(wán)儿(r)吧(ba)。 / 遊びに行きましょう。|晚上,wǎnshang,夜,2,,晚(wǎn)上(shang)见(jiàn)吧(ba)。 / 夜に会いましょう。|为什么,wèishénme,なぜ,2,,你(nǐ)为(wèi)什(shén)么(me)不(bù)去(qù)？ / あなたはなぜ行かないのですか？|问,wèn,尋ねる,2,,我(wǒ)问(wèn)老(lǎo)师(shī)。 / 私は先生に尋ねます。|问题,wèntí,問題,2,,我(wǒ)没(méi)有(yǒu)问(wèn)题(tí)了(le)。 / 私はもう質問はありません。|西瓜,xīguā,スイカ,2,,我(wǒ)喜(xǐ)欢(huan)吃(chī)西(xī)瓜(guā)。 / 私はスイカを食べるのが好きです。|希望,xīwàng,希望する,2,,我(wǒ)希(xī)望(wàng)你(nǐ)去(qù)。 / 私はあなたに行ってほしいです。|洗,xǐ,洗う,2,,我(wǒ)要(yào)洗(xǐ)衣(yī)服(fu)。 / 私は服を洗うつもりです。|小时,xiǎoshí,時間,2,,我(wǒ)看(kàn)了(le)一(yì)小(xiǎo)时(shí)书(shū)。 / 私は1時間本を読みました。|笑,xiào,笑う,2,,他(tā)对(duì)我(wǒ)笑(xiào)了(le)。 / 彼は私に向かって笑いました。|新,xīn,新しい,2,,我(wǒ)买(mǎi)新(xīn)衣(yī)服(fu)了(le)。 / 私は新しい服を買いました。|姓,xìng,苗字,2,,他(tā)姓(xìng)王(wáng)。 / 彼の姓は王です。|休息,xiūxi,休む,2,,我(wǒ)想(xiǎng)休(xiū)息(xi)一(yí)下(xià)。 / 私は少し休みいたいです。|雪,xuě,雪,2,,外(wài)面(mian)下(xià)雪(xuě)了(le)。 / 外は雪が降っています。|颜色,yánsè,色,2,,你(nǐ)喜(xǐ)欢(huan)什(shén)么(me)颜(yán)色(sè)？ / あなたは何色が好きですか？|眼睛,yǎnjing,目,2,,他(tā)的(de)眼(yǎn)睛(jing)很(hěn)大(dà)。 / 彼の目はとても大きいです。|羊肉,yángròu,羊肉,2,,我(wǒ)不(bù)爱(ài)吃(chī)羊(yáng)肉(ròu)。 / 私は羊肉を食べるのが好きではありません。|药,yào,薬,2,,他(tā)在(zài)吃(chī)药(yào)。 / 彼は薬を飲んでいます。|要,yào,〜したい,2,,我(wǒ)要(yào)喝(hē)热(rè)水(shuǐ)。 / 私はお湯（熱い水）を飲みたいです。|也,yě,〜もまた,2,,我(wǒ)也(yě)去(qù)北(běi)京(jīng)。 / 私も北京へ行きます。|一起,yìqǐ,一緒に,2,,我(wǒ)们(men)一(yì)起(qǐ)去(qù)吧(ba)。 / 一緒に行きましょう。|已经,yǐjīng,すでに,2,,我(wǒ)已(yǐ)经(jīng)吃(chī)了(le)。 / 私はすでに食べました。|意思,yìsi,意味,2,,这(zhè)是(shì)什(shén)么(me)意(yì)思(si)？ / これはどういう意味ですか？|因为,yīnwèi,なぜなら,2,,因(yīn)为(wèi)天(tiān)很(hěn)冷(lěng)。 / 天気がとても寒いからです。|所以,suǒyǐ,だから,2,,所(suǒ)以(yǐ)我(wǒ)没(méi)去(qù)。 / だから私は行きませんでした。|阴,yīn,曇り,2,,今(jīn)天(tiān)天(tiān)气(qì)是(shì)阴(yīn)。 / 今日の天気は曇りです。|游泳,yóuyǒng,泳ぐ,2,,我(wǒ)会(huì)游(yóu)泳(yǒng)了(le)。 / 私は泳げるようになりました。|右边,yòubian,右,2,,他(tā)在(zài)我(wǒ)的(de)右(yòu)边(biān)。 / 彼は私の右側にいます。|鱼,yú,魚,2,,我(wǒ)爱(ài)吃(chī)鱼(yú)。 / 私は魚を食べるのが好きです。|远,yuǎn,遠い,2,,这(zhè)儿(r)离(lí)家(jiā)很(hěn)远(yuǎn)。 / ここは家からとても遠いです。|運動,yùndòng,運動,2,,我(wǒ)每(měi)天(tiān)运(yùn)动(dòng)。 / 私は毎日運動をします。|再,zài,また,2,,明(míng)天(tiān)再(zài)见(jiàn)。 / また明日会いましょう。|早上,zǎoshang,朝,2,,早(zǎo)上(shang)好(hǎo)，老(lǎo)师(shī)。 / 先生、おはようございます。|丈夫,zhàngfu,夫,2,,她(tā)的(de)丈(zhàng)夫(fu)是(shì)医(yī)生(shēng)。 / 彼女の夫は医者です。|找,zhǎo,探す,2,,我(wǒ)在(zài)找(zhǎo)手(shǒu)机(jī)。 / 私は携帯を探しています。|着,zhe,〜している,2,,门(mén)开(kāi)着(zhe)。 / 門が開いています。|真,zhēn,本当に,2,,真(zhēn)漂(piào)亮(liang)。 / 本当に綺麗です。|正在,zhèngzài,〜している最中,2,,他(tā)在(zài)说(shuō)话(huà)。 / 彼は話をしています。|知道,zhīdào,知っている,2,,我(wǒ)知(zhī)道(dào)这(zhè)件(jiàn)事(shì)。 / 私はこの件を知っています。|準備,zhǔnbèi,準備する,2,,我(wǒ)准(zhǔn)备(bèi)好(hǎo)了(le)。 / 私は準備ができました。|自行车,zìxíngchē,自転車,2,,我(wǒ)骑(qí)自(zì)行(xíng)车(chē)。 / 私は自転車に乗ります。|走,zǒu,歩く,2,,我(wǒ)们(men)走(zǒu)吧(ba)。 / 行きましょう。|最,zuì,もっとも,2,,他(tā)是(shì)我(wǒ)最(zuì)好(hǎo)的(de)朋(péng)友(you)。 / 彼は私の最高の友達です。|左边,zuǒbian,左,2,,他(tā)在(zài)我(wǒ)の(de)左(zuǒ)边(biān)。 / 彼は私の左側にいます。|向,xiàng,〜に向かって,2,,请(qǐng)向(xiàng)右(yòu)走(zǒu)。 / どうぞ右に向かって歩いてください。";
+// ----------------------------
+
+const allData = (d1 + (d1 && d2 ? "|" : "") + d2).split('|').filter(v=>v).map(s => {
+const p = s.split(',');
+return { c: p[0], p: p[1], m: p[2], l: p[3] || "1", ex: p[5] || "" };
+});
+
+const STORAGE_KEY = 'hsk_srs_v5';
+let s = JSON.parse(localStorage.getItem(STORAGE_KEY)) || allData.map(w=>({...w, nr:Date.now(), iv:0}));
+let curMode = 'all';
+let cur = null;
+
+function setMode(mode) {
+curMode = mode;
+document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+document.getElementById('tab-' + mode).classList.add('active');
+document.getElementById('card').classList.remove('flipped');
+document.getElementById('controls').classList.remove('show');
+draw();
+}
+
+function speak(text, rate = 0.8) {
+if(!text) return;
+window.speechSynthesis.cancel();
+const uttr = new SpeechSynthesisUtterance(text);
+uttr.lang = 'zh-CN';
+uttr.rate = rate;
+window.speechSynthesis.speak(uttr);
+}
+
+function handleMainAudio(e) { e.stopPropagation(); if(cur) speak(cur.c, 0.8); }
+function handleExAudio(e) {
+e.stopPropagation();
+if(!cur || !cur.ex) return;
+const rawText = cur.ex.split(' / ')[0].replace(/\(.*?\)/g, "").trim();
+speak(rawText, 0.7);
+}
+
+function parseRuby(text) {
+return text.replace(/([一-龠]+)\((.*?)\)/g, '<ruby>$1<rt>$2</rt></ruby>');
+}
+
+function draw() {
+const now = Date.now();
+const filtered = s.filter(w => (curMode === 'all' || w.l === curMode));
+// 忘却曲線ロジック：次回学習時間(nr)が現在(now)以前のものだけを抽出
+const due = filtered.filter(w => w.nr <= now);
+
+cur = due.length ? due[Math.floor(Math.random() * due.length)] : null;
+
+if(!cur) {
+document.getElementById('card-area').style.display='none';
+document.getElementById('controls').classList.remove('show');
+document.getElementById('msg').style.display='block';
+updateStats(filtered, due.length);
+return;
+}
+
+document.getElementById('card-area').style.display='block';
+document.getElementById('msg').style.display='none';
+
+document.getElementById('front-chinese').textContent = cur.c;
+document.getElementById('front-pinyin').textContent = cur.p;
+const lvF = document.getElementById('lv-front');
+lvF.textContent = `HSK ${cur.l}`;
+lvF.style.background = cur.l == "1" ? "var(--h1)" : "var(--h2)";
+
+document.getElementById('back-chinese').textContent = cur.c;
+document.getElementById('back-pinyin').textContent = cur.p;
+document.getElementById('back-meaning').textContent = cur.m;
+
+if(cur.ex) {
+const parts = cur.ex.split(' / ');
+document.getElementById('ex-cn-ruby').innerHTML = parseRuby(parts[0].trim());
+document.getElementById('ex-ja').textContent = parts[1] || "";
+document.getElementById('back-example').style.display = 'block';
+} else {
+document.getElementById('back-example').style.display = 'none';
+}
+
+updateStats(filtered, due.length);
+speak(cur.c);
+}
+
+function updateStats(filteredList, dueCount) {
+document.getElementById('stats').textContent = `残りの単語: ${dueCount} / ${filteredList.length}`;
+const progress = filteredList.length ? ((filteredList.length - dueCount) / filteredList.length) * 100 : 0;
+document.getElementById('pb').style.width = `${progress}%`;
+}
+
+function flip() {
+const card = document.getElementById('card');
+if(!card.classList.contains('flipped')) {
+card.classList.add('flipped');
+document.getElementById('controls').classList.add('show');
+}
+}
+
+// 忘却曲線(SRS)アルゴリズムのコア部分
+function handleRes(e, ok) {
+e.stopPropagation();
+const now = Date.now();
+if(ok) {
+// 覚えた：間隔を2.1倍に伸ばして未来へ飛ばす
+cur.iv = cur.iv === 0 ? 1 : Math.floor(cur.iv * 2.1) || 3;
+cur.nr = now + (cur.iv * 86400000);
+} else {
+// 忘れた：間隔をリセットして即座に出題リストに残す
+cur.iv = 0; cur.nr = now;
+}
+localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+document.getElementById('card').classList.remove('flipped');
+document.getElementById('controls').classList.remove('show');
+setTimeout(draw, 300);
+}
+
+function restartCurrentMode() {
+const modeName = curMode === 'all' ? '全て' : `HSK ${curMode}級`;
+if(confirm(`${modeName}の範囲を最初から出題し直しますか？`)) {
+const now = Date.now();
+s.forEach(w => {
+if (curMode === 'all' || w.l === curMode) {
+w.nr = now;
+w.iv = 0;
+}
+});
+localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+document.getElementById('card').classList.remove('flipped');
+document.getElementById('controls').classList.remove('show');
+draw();
+}
+}
+
+function toggleList() {
+const list = document.getElementById('word-list');
+const btn = document.getElementById('list-toggle');
+if(list.style.display === 'block') {
+list.style.display = 'none';
+btn.textContent = "📋 残っている単語一覧を表示";
+} else {
+const now = Date.now();
+const due = s.filter(w => (curMode === 'all' || w.l === curMode) && w.nr <= now);
+list.innerHTML = due.map(w => `<div class="list-item"><span><b>${w.c}</b> <small>${w.p}</small> [L${w.l}]</span><span>${w.m}</span></div>`).join('') || "残っている単語はありません。";
+list.style.display = 'block';
+btn.textContent = "リストを閉じる";
+}
+}
+
+function fullReset() {
+if(confirm("全ての記録を消去して初期状態に戻します。よろしいですか？")) {
+localStorage.removeItem(STORAGE_KEY);
+location.reload();
+}
+}
+
+draw();
+</script>
+</body>
+</html>
