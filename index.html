@@ -222,7 +222,7 @@ e.stopPropagation();
 const now = Date.now();
 if(ok) {
 cur.iv = cur.iv === 0 ? 1 : Math.floor(cur.iv * 2.1) || 3;
-cur.nr = now + (cur.iv * 86400000);
+cur.nr = now + (cur.iv * 86400000)- 14400000;
 } else {
 cur.iv = 0; cur.nr = now;
 }
