@@ -286,8 +286,7 @@ function speak(t) {
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t);
     u.lang = 'zh-CN';
-    uttr.rate = 1.0;
-    uttr.pitch = 1.0;
+    u.rate = 0.8;
     window.speechSynthesis.speak(u);
 }
 
